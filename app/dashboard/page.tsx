@@ -106,42 +106,6 @@ export default function Dashboard() {
     navigator.clipboard.writeText(link)
   }
 
-  const getBlockExplorerUrl = (hash: string, chain: string) => {
-    if (chain === 'solana') {
-      return `https://solscan.io/tx/${hash}?cluster=devnet`
-    } else {
-      return `https://etherscan.io/tx/${hash}`
-    }
-  }
-
-  const downloadInvoice = async (paymentId: string) => {
-    try {
-      const response = await fetch('/api/download-invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.pdf) {
-          // Create download link for PDF
-          const link = document.createElement('a')
-          link.href = data.pdf
-          link.download = `invoice-${data.invoiceNumber}.pdf`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-        }
-      } else {
-        alert('Failed to generate invoice')
-      }
-    } catch (error) {
-      console.error('Error downloading invoice:', error)
-      alert('Failed to generate invoice')
-    }
-  }
-
   const handleSignOut = async () => {
     if (!supabase) return
     await supabase.auth.signOut()
