@@ -348,6 +348,9 @@ export default function Dashboard() {
                           Transaction
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Sender Wallet
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
@@ -399,6 +402,15 @@ export default function Dashboard() {
                                 </a>
                               ) : (
                                 <span className="text-gray-400">Pending</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {payment.buyer_wallet ? (
+                                <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  {payment.buyer_wallet.slice(0, 6)}...{payment.buyer_wallet.slice(-4)}
+                                </code>
+                              ) : (
+                                <span className="text-gray-400">N/A</span>
                               )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">

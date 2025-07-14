@@ -198,19 +198,23 @@ const TOKEN_CONTRACTS = {
 }
 
 export async function verifySOLPayment(
+  senderAddress: string,
   walletAddress: string,
   expectedAmount: number,
   timeWindow: number = 30 * 60 * 1000 // 30 minutes
 ): Promise<{ verified: boolean; transactionHash?: string; debug?: any }> {
   try {
     console.log('🔍 Starting SOL payment verification...')
+    console.log('Sender address:', senderAddress)
     console.log('Wallet address:', walletAddress)
     console.log('Expected amount:', expectedAmount)
     console.log('Time window:', timeWindow, 'ms')
     
+    const senderKey = new PublicKey(senderAddress)
     const publicKey = new PublicKey(walletAddress)
-    console.log('✅ Public key created successfully')
+    console.log('✅ Public keys created successfully')
     
+    // Get transactions for the recipient address
     const signatures = await solanaConnection.getSignaturesForAddress(publicKey, {
       limit: 50
     })
@@ -238,25 +242,41 @@ export async function verifySOLPayment(
         console.log('Pre-balances:', transaction.meta.preBalances.map(b => b / 1e9))
         console.log('Post-balances:', transaction.meta.postBalances.map(b => b / 1e9))
         
-        // Check all accounts in the transaction, not just index 0
+        const accountKeys = transaction.transaction.message.accountKeys
+        
+        // Find sender and receiver indices
+        let senderIndex = -1
+        let receiverIndex = -1
+        
         for (let i = 0; i < transaction.meta.preBalances.length; i++) {
-          const balanceChange = (transaction.meta.postBalances[i] - transaction.meta.preBalances[i]) / 1e9
-          console.log(`Account ${i} balance change:`, balanceChange)
+          const accountKey = accountKeys[i]?.toString()
+          if (accountKey === senderAddress) senderIndex = i
+          if (accountKey === walletAddress) receiverIndex = i
+        }
+        
+        console.log('Sender index:', senderIndex, 'Receiver index:', receiverIndex)
+        
+        if (senderIndex !== -1 && receiverIndex !== -1) {
+          const senderChange = (transaction.meta.postBalances[senderIndex] - transaction.meta.preBalances[senderIndex]) / 1e9
+          const receiverChange = (transaction.meta.postBalances[receiverIndex] - transaction.meta.preBalances[receiverIndex]) / 1e9
           
-          // Check if this account matches our wallet
-          const accountKey = transaction.transaction.message.accountKeys[i]?.toString()
-          console.log(`Account ${i} key:`, accountKey)
-          console.log(`Matches wallet:`, accountKey === walletAddress)
+          console.log('Sender balance change:', senderChange)
+          console.log('Receiver balance change:', receiverChange)
           
-          if (accountKey === walletAddress && Math.abs(balanceChange - expectedAmount) < 0.001) {
-            console.log('✅ Payment verified!')
+          // Verify that:
+          // 1. Receiver got the expected amount (positive change)
+          // 2. Sender lost approximately the same amount (negative change, accounting for fees)
+          if (Math.abs(receiverChange - expectedAmount) < 0.001 && senderChange < 0) {
+            console.log('✅ Payment verified with sender/receiver match!')
             return {
               verified: true,
               transactionHash: signatureInfo.signature,
               debug: {
-                balanceChange,
+                senderChange,
+                receiverChange,
                 expectedAmount,
-                difference: Math.abs(balanceChange - expectedAmount)
+                senderAddress,
+                receiverAddress: walletAddress
               }
             }
           }
@@ -384,6 +404,7 @@ export async function getRecentTransactions(walletAddress: string, limit: number
 }
 
 export async function verifyETHPayment(
+  senderAddress: string,
   walletAddress: string,
   expectedAmount: number,
   timeWindow: number = 30 * 60 * 1000
@@ -391,36 +412,54 @@ export async function verifyETHPayment(
   try {
     if (!ethProvider) throw new Error('Ethereum provider not configured')
     
+    console.log('🔍 Starting ETH payment verification...')
+    console.log('Sender address:', senderAddress)
+    console.log('Receiver address:', walletAddress)
+    console.log('Expected amount:', expectedAmount)
+    
     const currentBlock = await ethProvider.getBlockNumber()
     const blocksToCheck = Math.floor(timeWindow / (13 * 1000)) // ~13 seconds per block
     const fromBlock = currentBlock - blocksToCheck
     
+    // Get transactions TO the recipient address
     const filter = {
-      address: null,
       fromBlock,
       toBlock: 'latest',
-      topics: [
-        null,
-        null,
-        ethers.zeroPadValue(walletAddress, 32)
-      ]
+      address: walletAddress
     }
     
-    const logs = await ethProvider.getLogs(filter)
-    
-    for (const log of logs) {
-      const transaction = await ethProvider.getTransaction(log.transactionHash)
-      if (transaction && transaction.to?.toLowerCase() === walletAddress.toLowerCase()) {
-        const amountETH = parseFloat(ethers.formatEther(transaction.value))
+    // Get all transactions in the block range and filter manually
+    for (let blockNum = fromBlock; blockNum <= currentBlock; blockNum++) {
+      try {
+        const block = await ethProvider.getBlock(blockNum, true)
+        if (!block || !block.transactions) continue
         
-        if (Math.abs(amountETH - expectedAmount) < 0.001) {
-          return {
-            verified: true,
-            transactionHash: transaction.hash
+        for (const tx of block.transactions) {
+          if (typeof tx === 'string') continue
+          
+          // Check if transaction is from our sender to our receiver
+          if (tx.from?.toLowerCase() === senderAddress.toLowerCase() && 
+              tx.to?.toLowerCase() === walletAddress.toLowerCase()) {
+            
+            const amountETH = parseFloat(ethers.formatEther(tx.value))
+            console.log('Found transaction:', tx.hash, 'Amount:', amountETH)
+            
+            if (Math.abs(amountETH - expectedAmount) < 0.001) {
+              console.log('✅ ETH Payment verified!')
+              return {
+                verified: true,
+                transactionHash: tx.hash
+              }
+            }
           }
         }
+      } catch (blockError) {
+        console.log('Error processing block', blockNum, ':', blockError)
+        continue
       }
     }
+    
+    console.log('❌ No matching ETH payment found')
     
     return { verified: false }
   } catch (error) {
@@ -431,12 +470,18 @@ export async function verifyETHPayment(
 
 export async function verifyTokenPayment(
   tokenSymbol: 'USDT' | 'USDC',
+  senderAddress: string,
   walletAddress: string,
   expectedAmount: number,
   timeWindow: number = 30 * 60 * 1000
 ): Promise<{ verified: boolean; transactionHash?: string }> {
   try {
     if (!ethProvider) throw new Error('Ethereum provider not configured')
+    
+    console.log('🔍 Starting', tokenSymbol, 'payment verification...')
+    console.log('Sender address:', senderAddress)
+    console.log('Receiver address:', walletAddress)
+    console.log('Expected amount:', expectedAmount)
     
     const contractAddress = TOKEN_CONTRACTS[tokenSymbol]
     const currentBlock = await ethProvider.getBlockNumber()
@@ -452,18 +497,21 @@ export async function verifyTokenPayment(
       toBlock: 'latest',
       topics: [
         transferTopic,
-        null, // from address
+        ethers.zeroPadValue(senderAddress, 32), // from address (sender)
         ethers.zeroPadValue(walletAddress, 32) // to address
       ]
     }
     
     const logs = await ethProvider.getLogs(filter)
+    console.log('Found', logs.length, 'transfer logs')
     
     for (const log of logs) {
       const amount = ethers.formatUnits(log.data, tokenSymbol === 'USDT' ? 6 : 6)
       const amountFloat = parseFloat(amount)
+      console.log('Transfer amount:', amountFloat, 'Expected:', expectedAmount)
       
       if (Math.abs(amountFloat - expectedAmount) < 0.01) {
+        console.log('✅', tokenSymbol, 'Payment verified!')
         return {
           verified: true,
           transactionHash: log.transactionHash
