@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendPaymentConfirmation } from '@/lib/email'
 import { generateInvoicePDF } from '@/lib/invoice'
 
 export async function POST(request: NextRequest) {
@@ -19,7 +18,8 @@ export async function POST(request: NextRequest) {
         products (
           *,
           users (email, full_name)
-        )
+        ),
+        invoices (invoice_number)
       `)
       .eq('id', paymentId)
       .single()
@@ -28,35 +28,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
     }
 
-    // Check if invoice already exists for this payment
-    const { data: existingInvoice } = await supabaseAdmin!
-      .from('invoices')
-      .select('invoice_number')
-      .eq('payment_id', paymentId)
-      .single()
+    if (payment.status !== 'confirmed') {
+      return NextResponse.json({ error: 'Payment not confirmed' }, { status: 400 })
+    }
 
-    let invoiceNumber: string
+    // Get or create invoice number
+    let invoiceNumber = payment.invoices?.[0]?.invoice_number
     
-    if (existingInvoice) {
-      // Use existing invoice number
-      invoiceNumber = existingInvoice.invoice_number
-    } else {
-      // Generate new invoice number
+    if (!invoiceNumber) {
       invoiceNumber = `INV-${Date.now()}-${paymentId.slice(-8)}`
       
       // Save invoice record
-      const { error: invoiceError } = await supabaseAdmin!
+      await supabaseAdmin!
         .from('invoices')
         .insert({
           payment_id: paymentId,
           invoice_number: invoiceNumber,
           sent_at: new Date().toISOString()
         })
-
-      if (invoiceError) {
-        console.error('Failed to save invoice record:', invoiceError)
-        return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
-      }
     }
 
     // Generate invoice
@@ -68,28 +57,21 @@ export async function POST(request: NextRequest) {
       amountUSD: payment.amount_usd,
       amountCrypto: payment.amount_crypto,
       currency: payment.currency,
-      transactionHash: payment.transaction_hash,
+      transactionHash: payment.transaction_hash || '',
       walletAddress: payment.products.recipient_wallet,
-      timestamp: new Date(payment.confirmed_at)
+      timestamp: new Date(payment.confirmed_at || payment.created_at)
     }
 
     const invoicePDF = generateInvoicePDF(invoiceData)
 
-    // Send confirmation emails
-    await sendPaymentConfirmation(
-      payment.buyer_email,
-      payment.products.users.email,
-      payment.products.name,
-      payment.amount_usd,
-      payment.amount_crypto,
-      payment.currency,
-      payment.transaction_hash,
-      invoicePDF
-    )
-
-    return NextResponse.json({ success: true })
+    // Return PDF as base64
+    return NextResponse.json({ 
+      success: true, 
+      pdf: invoicePDF,
+      invoiceNumber 
+    })
   } catch (error: any) {
-    console.error('Confirmation email error:', error)
+    console.error('Invoice download error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

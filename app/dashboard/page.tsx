@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { Product, Payment } from '@/lib/types'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Copy, ExternalLink, DollarSign, Package, TrendingUp, Coins } from 'lucide-react'
+import { Plus, Copy, ExternalLink, DollarSign, Package, TrendingUp, Coins, Search, Download } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Dashboard() {
@@ -19,6 +20,8 @@ export default function Dashboard() {
     totalPayments: 0,
     activeProducts: 0
   })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filteredPayments, setFilteredPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -67,6 +70,7 @@ export default function Dashboard() {
 
       setProducts(productsData || [])
       setPayments(paymentsData)
+      setFilteredPayments(paymentsData)
 
       // Calculate stats
       const totalRevenue = paymentsData
@@ -84,9 +88,58 @@ export default function Dashboard() {
     }
   }
 
+  // Filter payments based on search term
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredPayments(payments)
+    } else {
+      const filtered = payments.filter(payment => 
+        payment.transaction_hash?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.buyer_email.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      setFilteredPayments(filtered)
+    }
+  }, [searchTerm, payments])
+
   const copyPaymentLink = (productId: string) => {
     const link = `${window.location.origin}/pay/${productId}`
     navigator.clipboard.writeText(link)
+  }
+
+  const getBlockExplorerUrl = (hash: string, chain: string) => {
+    if (chain === 'solana') {
+      return `https://solscan.io/tx/${hash}`
+    } else {
+      return `https://etherscan.io/tx/${hash}`
+    }
+  }
+
+  const downloadInvoice = async (paymentId: string) => {
+    try {
+      const response = await fetch('/api/download-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.pdf) {
+          // Create download link for PDF
+          const link = document.createElement('a')
+          link.href = data.pdf
+          link.download = `invoice-${data.invoiceNumber}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+        }
+      } else {
+        alert('Failed to generate invoice')
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error)
+      alert('Failed to generate invoice')
+    }
   }
 
   const handleSignOut = async () => {
@@ -244,14 +297,29 @@ export default function Dashboard() {
 
         {/* Recent Payments */}
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Payments</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Payments</h2>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search by transaction hash or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
           
-          {payments.length === 0 ? (
+          {filteredPayments.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
                 <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No payments yet</h3>
-                <p className="text-gray-600">Share your payment links to start receiving payments.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {searchTerm ? 'No payments found' : 'No payments yet'}
+                </h3>
+                <p className="text-gray-600">
+                  {searchTerm ? 'Try adjusting your search terms.' : 'Share your payment links to start receiving payments.'}
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -276,10 +344,16 @@ export default function Dashboard() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Date
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Transaction
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {payments.slice(0, 10).map((payment) => {
+                      {filteredPayments.slice(0, 10).map((payment) => {
                         const product = products.find(p => p.id === payment.product_id)
                         return (
                           <tr key={payment.id}>
@@ -312,6 +386,34 @@ export default function Dashboard() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(payment.created_at).toLocaleDateString()}
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {payment.transaction_hash ? (
+                                <a
+                                  href={getBlockExplorerUrl(payment.transaction_hash, payment.chain)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 font-mono text-xs"
+                                >
+                                  {payment.transaction_hash.slice(0, 8)}...{payment.transaction_hash.slice(-8)}
+                                  <ExternalLink className="inline h-3 w-3 ml-1" />
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">Pending</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {payment.status === 'confirmed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadInvoice(payment.id)}
+                                  className="flex items-center"
+                                >
+                                  <Download className="h-3 w-3 mr-1" />
+                                  Invoice
+                                </Button>
+                              )}
+                            </td>
                           </tr>
                         )
                       })}
@@ -320,6 +422,14 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
+          )}
+          
+          {filteredPayments.length > 10 && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Showing 10 of {filteredPayments.length} payments
+              </p>
+            </div>
           )}
         </div>
       </div>

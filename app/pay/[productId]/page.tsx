@@ -160,6 +160,22 @@ export default function PaymentPage() {
     if (!product) return
 
     try {
+      // First check if this payment already has a transaction hash
+      const { data: existingPayment } = await supabase!
+        .from('payments')
+        .select('transaction_hash, status')
+        .eq('id', paymentId)
+        .single()
+
+      if (existingPayment?.transaction_hash && existingPayment?.status === 'confirmed') {
+        setPaymentStatus('confirmed')
+        setError('Payment already verified.')
+        if (verificationInterval) {
+          clearInterval(verificationInterval)
+        }
+        return
+      }
+
       let result = { verified: false, transactionHash: undefined }
 
       if (product.chain === 'solana' && product.currency === 'SOL') {
@@ -177,6 +193,23 @@ export default function PaymentPage() {
       }
 
       if (result.verified && result.transactionHash) {
+        // Check if this transaction hash already exists in the database
+        const { data: existingTransaction } = await supabase!
+          .from('payments')
+          .select('id, transaction_hash')
+          .eq('transaction_hash', result.transactionHash)
+          .neq('id', paymentId)
+          .single()
+
+        if (existingTransaction) {
+          setError('This transaction has already been verified for another payment.')
+          setPaymentStatus('failed')
+          if (verificationInterval) {
+            clearInterval(verificationInterval)
+          }
+          return
+        }
+
         // Update payment status
         const { error } = await supabase!
           .from('payments')

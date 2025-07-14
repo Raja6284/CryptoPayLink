@@ -220,74 +220,63 @@ export async function verifySOLPayment(
     const cutoffTime = Date.now() - timeWindow
     console.log('⏰ Cutoff time:', new Date(cutoffTime).toISOString())
     
-    let validTransactions = []
+    // Sort signatures by block time (newest first) to check recent transactions first
+    const sortedSignatures = signatures
+      .filter(sig => sig.blockTime && (sig.blockTime * 1000) > cutoffTime)
+      .sort((a, b) => (b.blockTime || 0) - (a.blockTime || 0))
     
-    for (const signatureInfo of signatures) {
+    for (const signatureInfo of sortedSignatures) {
       const txTime = signatureInfo.blockTime ? signatureInfo.blockTime * 1000 : 0
       console.log(`\n🔍 Checking transaction: ${signatureInfo.signature}`)
       console.log('Block time:', txTime ? new Date(txTime).toISOString() : 'Unknown')
-      console.log('Within time window:', txTime > cutoffTime)
       
-      if (signatureInfo.blockTime && txTime > cutoffTime) {
-        const transaction = await solanaConnection.getTransaction(signatureInfo.signature, {
-          maxSupportedTransactionVersion: 0
-        })
+      const transaction = await solanaConnection.getTransaction(signatureInfo.signature, {
+        maxSupportedTransactionVersion: 0
+      })
+      
+      if (transaction?.meta?.postBalances && transaction?.meta?.preBalances) {
+        console.log('Pre-balances:', transaction.meta.preBalances.map(b => b / 1e9))
+        console.log('Post-balances:', transaction.meta.postBalances.map(b => b / 1e9))
         
-        if (transaction?.meta?.postBalances && transaction?.meta?.preBalances) {
-          console.log('Pre-balances:', transaction.meta.preBalances.map(b => b / 1e9))
-          console.log('Post-balances:', transaction.meta.postBalances.map(b => b / 1e9))
+        // Check all accounts in the transaction, not just index 0
+        for (let i = 0; i < transaction.meta.preBalances.length; i++) {
+          const balanceChange = (transaction.meta.postBalances[i] - transaction.meta.preBalances[i]) / 1e9
+          console.log(`Account ${i} balance change:`, balanceChange)
           
-          // Check all accounts in the transaction, not just index 0
-          for (let i = 0; i < transaction.meta.preBalances.length; i++) {
-            const balanceChange = (transaction.meta.postBalances[i] - transaction.meta.preBalances[i]) / 1e9
-            console.log(`Account ${i} balance change:`, balanceChange)
-            
-            // Check if this account matches our wallet
-            const accountKey = transaction.transaction.message.accountKeys[i]?.toString()
-            console.log(`Account ${i} key:`, accountKey)
-            console.log(`Matches wallet:`, accountKey === walletAddress)
-            
-            if (accountKey === walletAddress && Math.abs(balanceChange - expectedAmount) < 0.001) {
-              console.log('✅ Payment verified!')
-              return {
-                verified: true,
-                transactionHash: signatureInfo.signature,
-                debug: {
-                  balanceChange,
-                  expectedAmount,
-                  difference: Math.abs(balanceChange - expectedAmount)
-                }
+          // Check if this account matches our wallet
+          const accountKey = transaction.transaction.message.accountKeys[i]?.toString()
+          console.log(`Account ${i} key:`, accountKey)
+          console.log(`Matches wallet:`, accountKey === walletAddress)
+          
+          if (accountKey === walletAddress && Math.abs(balanceChange - expectedAmount) < 0.001) {
+            console.log('✅ Payment verified!')
+            return {
+              verified: true,
+              transactionHash: signatureInfo.signature,
+              debug: {
+                balanceChange,
+                expectedAmount,
+                difference: Math.abs(balanceChange - expectedAmount)
               }
             }
           }
-          
-          validTransactions.push({
-            signature: signatureInfo.signature,
-            balanceChanges: transaction.meta.postBalances.map((post, i) => ({
-              account: transaction.transaction.message.accountKeys[i]?.toString(),
-              change: (post - transaction.meta!.preBalances[i]) / 1e9
-            })),
-            blockTime: txTime
-          })
         }
       }
     }
     
     console.log('❌ No matching payment found')
-    console.log('Valid transactions found:', validTransactions.length)
     
     return { 
       verified: false, 
       debug: {
-        totalSignatures: signatures.length,
-        validTransactions,
+        totalSignatures: sortedSignatures.length,
         cutoffTime: new Date(cutoffTime).toISOString(),
         expectedAmount
       }
     }
   } catch (error) {
     console.error('SOL payment verification error:', error)
-    return { verified: false, debug: { error: error.message } }
+    return { verified: false, debug: { error: (error as Error).message } }
   }
 }
 
