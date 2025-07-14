@@ -23,6 +23,7 @@ export default function PaymentPage() {
   const [cryptoAmount, setCryptoAmount] = useState(0)
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
+  const [buyerWallet, setBuyerWallet] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle')
   const [paymentId, setPaymentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,8 +105,14 @@ export default function PaymentPage() {
   }
 
   const handlePaymentSubmission = async () => {
-    if (!product || !buyerEmail) {
-      setError('Please provide your email address')
+    if (!product || !buyerEmail || !buyerWallet) {
+      setError('Please provide your email address and wallet address')
+      return
+    }
+
+    // Validate wallet address format
+    if (!isValidWalletAddress(buyerWallet, product.chain)) {
+      setError('Please enter a valid wallet address for the selected blockchain')
       return
     }
 
@@ -123,6 +130,7 @@ export default function PaymentPage() {
           amount_crypto: cryptoAmount,
           currency: product.currency,
           chain: product.chain,
+          buyer_wallet: buyerWallet,
           status: 'pending'
         })
         .select()
@@ -160,16 +168,51 @@ export default function PaymentPage() {
     if (!product) return
 
     try {
+      // First check if this payment already has a transaction hash
+      const { data: existingPayment } = await supabase!
+        .from('payments')
+        .select('transaction_hash, status, buyer_wallet')
+        .eq('id', paymentId)
+        .single()
+
+      if (existingPayment?.transaction_hash && existingPayment?.status === 'confirmed') {
+        setPaymentStatus('confirmed')
+        setError('Payment already verified.')
+        if (verificationInterval) {
+          clearInterval(verificationInterval)
+        }
+        return
+      }
+
+      const buyerWalletAddress = existingPayment?.buyer_wallet
+      if (!buyerWalletAddress) {
+        setError('Buyer wallet address not found. Please try again.')
+        setPaymentStatus('failed')
+        if (verificationInterval) {
+          clearInterval(verificationInterval)
+        }
+        return
+      }
+
       let result = { verified: false, transactionHash: undefined }
 
       if (product.chain === 'solana' && product.currency === 'SOL') {
-        result = await verifySOLPayment(product.recipient_wallet, cryptoAmount)
+        result = await verifySOLPayment(
+          buyerWalletAddress,
+          product.recipient_wallet, 
+          cryptoAmount
+        )
       } else if (product.chain === 'ethereum') {
         if (product.currency === 'ETH') {
-          result = await verifyETHPayment(product.recipient_wallet, cryptoAmount)
+          result = await verifyETHPayment(
+            buyerWalletAddress,
+            product.recipient_wallet, 
+            cryptoAmount
+          )
         } else if (product.currency === 'USDT' || product.currency === 'USDC') {
           result = await verifyTokenPayment(
             product.currency as 'USDT' | 'USDC',
+            buyerWalletAddress,
             product.recipient_wallet,
             cryptoAmount
           )
@@ -177,6 +220,23 @@ export default function PaymentPage() {
       }
 
       if (result.verified && result.transactionHash) {
+        // Check if this transaction hash already exists in the database
+        const { data: existingTransaction } = await supabase!
+          .from('payments')
+          .select('id, transaction_hash')
+          .eq('transaction_hash', result.transactionHash)
+          .neq('id', paymentId)
+          .single()
+
+        if (existingTransaction) {
+          setError('This transaction has already been verified for another payment.')
+          setPaymentStatus('failed')
+          if (verificationInterval) {
+            clearInterval(verificationInterval)
+          }
+          return
+        }
+
         // Update payment status
         const { error } = await supabase!
           .from('payments')
@@ -205,6 +265,17 @@ export default function PaymentPage() {
     } catch (error) {
       console.error('Payment verification error:', error)
     }
+  }
+
+  const isValidWalletAddress = (address: string, chain: string): boolean => {
+    if (chain === 'solana') {
+      // Solana addresses are base58 encoded and typically 32-44 characters
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
+    } else if (chain === 'ethereum') {
+      // Ethereum addresses are 42 characters starting with 0x
+      return /^0x[a-fA-F0-9]{40}$/.test(address)
+    }
+    return false
   }
 
   const getBlockExplorerUrl = (hash: string) => {
@@ -327,6 +398,27 @@ export default function PaymentPage() {
                     />
                   </div>
                 )}
+
+                {paymentStatus === 'idle' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="wallet">Your Wallet Address *</Label>
+                    <Input
+                      id="wallet"
+                      type="text"
+                      placeholder={
+                        product.chain === 'solana' 
+                          ? 'Enter your Solana wallet address'
+                          : 'Enter your Ethereum wallet address (0x...)'
+                      }
+                      value={buyerWallet}
+                      onChange={(e) => setBuyerWallet(e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-gray-500">
+                      This must be the wallet address you're sending the payment from
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* QR Code */}
@@ -400,12 +492,12 @@ export default function PaymentPage() {
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={handlePaymentSubmission}
-                  disabled={loading || !buyerEmail}
+                  disabled={loading || !buyerEmail || !buyerWallet}
                 >
                   {loading ? 'Processing...' : "I've Sent the Payment"}
                 </Button>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                  Click only after sending the exact amount to the wallet address above
+                  Click only after sending the exact amount from your specified wallet address
                 </p>
               </div>
             )}
@@ -427,7 +519,7 @@ export default function PaymentPage() {
             <div className="space-y-3 text-sm text-gray-600">
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">1.</span>
-                <p>Copy the wallet address or scan the QR code with your crypto wallet</p>
+                <p>Copy the recipient wallet address or scan the QR code with your crypto wallet</p>
               </div>
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">2.</span>
@@ -435,7 +527,7 @@ export default function PaymentPage() {
               </div>
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">3.</span>
-                <p>Enter your email and click I have Sent the Payment</p>
+                <p>Enter your email and the wallet address you're sending from, then click "I've Sent the Payment"</p>
               </div>
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">4.</span>

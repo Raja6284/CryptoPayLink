@@ -25,13 +25,13 @@ export interface Payment {
   id: string
   product_id: string
   buyer_email: string
+  buyer_wallet?: string
   amount_usd: number
   amount_crypto: number
   currency: string
   chain: string
   transaction_hash?: string
   status: 'pending' | 'confirmed' | 'failed'
-  buyer_wallet?: string
   created_at: string
   confirmed_at?: string
 }
