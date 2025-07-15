@@ -150,44 +150,41 @@ export default function PaymentPage() {
   }
 
   const startPaymentVerification = (paymentId: string) => {
-    }, 10000) // Check every 10 seconds
-    const response = await fetch('/api/verify-payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentId })
-    })
-
-    const data = await response.json()
-
-    if (data.success) {
-      setPaymentStatus('confirmed')
-      if (verificationInterval) {
-        clearInterval(verificationInterval)
-      }
-    } else if (data.error) {
-      setError(data.error)
-      setPaymentStatus('failed')
-      if (verificationInterval) {
-        clearInterval(verificationInterval)
-      }
-        if (error) throw error
-
-        setPaymentStatus('confirmed')
-        
-        if (verificationInterval) {
-          clearInterval(verificationInterval)
-        }
-
-        // Trigger invoice generation and email
-        await fetch('/api/send-confirmation', {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentId })
         })
+
+        const data = await response.json()
+
+        if (data.success) {
+          setPaymentStatus('confirmed')
+          if (verificationInterval) {
+            clearInterval(verificationInterval)
+          }
+
+          // Trigger invoice generation and email
+          await fetch('/api/send-confirmation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId })
+          })
+        } else if (data.error) {
+          setError(data.error)
+          setPaymentStatus('failed')
+          if (verificationInterval) {
+            clearInterval(verificationInterval)
+          }
+        }
+      } catch (error) {
+        console.error('Payment verification error:', error)
       }
-    } catch (error) {
-      console.error('Payment verification error:', error)
-    }
+    }, 10000) // Check every 10 seconds
+    
+    setVerificationInterval(interval)
   }
 
   const isValidWalletAddress = (address: string, chain: string): boolean => {
