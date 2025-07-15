@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
 // GET - Get single product (public access for payment pages)
 export async function GET(
@@ -29,10 +31,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
-    }
-
+    // Get user from server-side auth
+    const cookieStore = cookies()
+    const supabase = createServerComponentClient({ cookies: () => cookieStore })
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
@@ -89,10 +90,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
-    }
-
+    // Get user from server-side auth
+    const cookieStore = cookies()
+    const supabase = createServerComponentClient({ cookies: () => cookieStore })
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {

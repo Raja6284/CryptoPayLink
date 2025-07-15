@@ -149,6 +149,83 @@ export default function Dashboard() {
     }
   }
 
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product)
+    setEditModalOpen(true)
+  }
+
+  const handleSaveProduct = async (updatedProduct: Partial<Product>) => {
+    if (!editingProduct) return
+
+    try {
+      const response = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProduct)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update product')
+      }
+
+      // Refresh data
+      await fetchData()
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return
+
+    try {
+      const response = await fetch(`/api/products/${productToDelete.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete product')
+      }
+
+      // Refresh data
+      await fetchData()
+      setDeleteConfirmOpen(false)
+      setProductToDelete(null)
+    } catch (error: any) {
+      alert(error.message)
+    }
+  }
+
+  const handleToggleActive = async (product: Product) => {
+    try {
+      const response = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...product,
+          is_active: !product.is_active
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update product')
+      }
+
+      // Refresh data
+      await fetchData()
+    } catch (error: any) {
+      alert(error.message)
+    }
+  }
+
   const handleSignOut = async () => {
     if (!supabase) return
     await supabase.auth.signOut()
@@ -252,7 +329,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {products.map((product) => (
-                <Card key={product.id}>
+                <Card key={product.id} className={!product.is_active ? 'opacity-60' : ''}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
@@ -501,80 +578,4 @@ export default function Dashboard() {
       />
     </div>
   )
-}
-const handleEditProduct = (product: Product) => {
-  setEditingProduct(product)
-  setEditModalOpen(true)
-}
-
-const handleSaveProduct = async (updatedProduct: Partial<Product>) => {
-  if (!editingProduct) return
-
-  try {
-    const response = await fetch(`/api/products/${editingProduct.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedProduct)
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update product')
-    }
-
-    // Refresh data
-    await fetchData()
-  } catch (error: any) {
-    throw error
-  }
-}
-
-const handleDeleteProduct = (product: Product) => {
-  setProductToDelete(product)
-  setDeleteConfirmOpen(true)
-}
-
-const confirmDeleteProduct = async () => {
-  if (!productToDelete) return
-
-  try {
-    const response = await fetch(`/api/products/${productToDelete.id}`, {
-      method: 'DELETE'
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete product')
-    }
-
-    // Refresh data
-    await fetchData()
-    setDeleteConfirmOpen(false)
-    setProductToDelete(null)
-  } catch (error: any) {
-    alert(error.message)
-  }
-}
-
-const handleToggleActive = async (product: Product) => {
-  try {
-    const response = await fetch(`/api/products/${product.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...product,
-        is_active: !product.is_active
-      })
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update product')
-    }
-
-    // Refresh data
-    await fetchData()
-  } catch (error: any) {
-    alert(error.message)
-  }
 }
