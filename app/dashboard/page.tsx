@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Copy, ExternalLink, DollarSign, Package, TrendingUp, Coins, Search, Download } from 'lucide-react'
+import { Plus, Copy, ExternalLink, DollarSign, Package, TrendingUp, Coins, Search, Download, Edit, Trash2, Eye, Power, PowerOff } from 'lucide-react'
+import { ProductEditModal } from '@/components/product-edit-modal'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
+import { Switch } from '@/components/ui/switch'
 import Link from 'next/link'
 
 export default function Dashboard() {
@@ -23,6 +26,10 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filteredPayments, setFilteredPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -252,9 +259,16 @@ export default function Dashboard() {
                         <CardTitle className="text-lg">{product.name}</CardTitle>
                         <p className="text-sm text-gray-600 mt-1">{product.description}</p>
                       </div>
-                      <Badge variant={product.is_active ? "default" : "secondary"}>
-                        {product.is_active ? "Active" : "Inactive"}
-                      </Badge>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={product.is_active}
+                          onCheckedChange={() => handleToggleActive(product)}
+                          size="sm"
+                        />
+                        <Badge variant={product.is_active ? "default" : "secondary"}>
+                          {product.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -275,17 +289,37 @@ export default function Dashboard() {
                         <Button 
                           variant="outline" 
                           size="sm" 
+                          onClick={() => handleEditProduct(product)}
+                          className="flex-1"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
                           onClick={() => copyPaymentLink(product.id)}
                           className="flex-1"
                         >
                           <Copy className="h-4 w-4 mr-2" />
                           Copy Link
                         </Button>
-                        <Link href={`/pay/${product.id}`} target="_blank">
-                          <Button variant="outline" size="sm">
-                            <ExternalLink className="h-4 w-4" />
+                        <div className="flex space-x-1">
+                          <Link href={`/pay/${product.id}`} target="_blank">
+                            <Button variant="outline" size="sm" title="Preview">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleDeleteProduct(product)}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        </Link>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -445,6 +479,102 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Edit Product Modal */}
+      <ProductEditModal
+        product={editingProduct}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onSave={handleSaveProduct}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete Product"
+        description={`Are you sure you want to delete "${productToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={confirmDeleteProduct}
+      />
     </div>
   )
+}
+const handleEditProduct = (product: Product) => {
+  setEditingProduct(product)
+  setEditModalOpen(true)
+}
+
+const handleSaveProduct = async (updatedProduct: Partial<Product>) => {
+  if (!editingProduct) return
+
+  try {
+    const response = await fetch(`/api/products/${editingProduct.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedProduct)
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update product')
+    }
+
+    // Refresh data
+    await fetchData()
+  } catch (error: any) {
+    throw error
+  }
+}
+
+const handleDeleteProduct = (product: Product) => {
+  setProductToDelete(product)
+  setDeleteConfirmOpen(true)
+}
+
+const confirmDeleteProduct = async () => {
+  if (!productToDelete) return
+
+  try {
+    const response = await fetch(`/api/products/${productToDelete.id}`, {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to delete product')
+    }
+
+    // Refresh data
+    await fetchData()
+    setDeleteConfirmOpen(false)
+    setProductToDelete(null)
+  } catch (error: any) {
+    alert(error.message)
+  }
+}
+
+const handleToggleActive = async (product: Product) => {
+  try {
+    const response = await fetch(`/api/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...product,
+        is_active: !product.is_active
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update product')
+    }
+
+    // Refresh data
+    await fetchData()
+  } catch (error: any) {
+    alert(error.message)
+  }
 }

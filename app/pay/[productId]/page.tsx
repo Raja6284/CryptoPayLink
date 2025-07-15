@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Product } from '@/lib/types'
-import { getCryptoPrice, calculateCryptoAmount, verifySOLPayment, verifyETHPayment, verifyTokenPayment } from '@/lib/blockchain'
+import { getCryptoPrice, calculateCryptoAmount } from '@/lib/blockchain'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
@@ -41,15 +40,16 @@ export default function PaymentPage() {
 
   const fetchProduct = async () => {
     try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .eq('id', productId)
-        .eq('is_active', true)
-        .single()
+      const response = await fetch(`/api/products/${productId}`)
+      const data = await response.json()
 
-      if (error) throw error
-      if (!data) throw new Error('Product not found')
+      if (!response.ok) {
+        throw new Error(data.error || 'Product not found')
+      }
+
+      if (!data.is_active) {
+        throw new Error('This product is no longer available')
+      }
 
       setProduct(data)
       await fetchCryptoPrice(data)
@@ -120,29 +120,28 @@ export default function PaymentPage() {
     setError('')
 
     try {
-      // Create payment record
-      const { data: payment, error } = await supabase!
-        .from('payments')
-        .insert({
-          product_id: product.id,
-          buyer_email: buyerEmail,
-          amount_usd: product.price_usd,
-          amount_crypto: cryptoAmount,
-          currency: product.currency,
-          chain: product.chain,
-          buyer_wallet: buyerWallet,
-          status: 'pending'
+      // Create payment record via API
+      const response = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          buyerEmail,
+          buyerWallet
         })
-        .select()
-        .single()
+      })
 
-      if (error) throw error
+      const data = await response.json()
       
-      setPaymentId(payment.id)
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create payment')
+      }
+      
+      setPaymentId(data.paymentId)
       setPaymentStatus('pending')
 
       // Start verification process
-      startPaymentVerification(payment.id)
+      startPaymentVerification(data.paymentId)
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -151,102 +150,26 @@ export default function PaymentPage() {
   }
 
   const startPaymentVerification = (paymentId: string) => {
-    const interval = setInterval(async () => {
-      await verifyPayment(paymentId)
     }, 10000) // Check every 10 seconds
+    const response = await fetch('/api/verify-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId })
+    })
 
-    setVerificationInterval(interval)
+    const data = await response.json()
 
-    // Stop verification after 30 minutes
-    setTimeout(() => {
-      clearInterval(interval)
+    if (data.success) {
+      setPaymentStatus('confirmed')
+      if (verificationInterval) {
+        clearInterval(verificationInterval)
+      }
+    } else if (data.error) {
+      setError(data.error)
       setPaymentStatus('failed')
-    }, 30 * 60 * 1000)
-  }
-
-  const verifyPayment = async (paymentId: string) => {
-    if (!product) return
-
-    try {
-      // First check if this payment already has a transaction hash
-      const { data: existingPayment } = await supabase!
-        .from('payments')
-        .select('transaction_hash, status, buyer_wallet')
-        .eq('id', paymentId)
-        .single()
-
-      if (existingPayment?.transaction_hash && existingPayment?.status === 'confirmed') {
-        setPaymentStatus('confirmed')
-        setError('Payment already verified.')
-        if (verificationInterval) {
-          clearInterval(verificationInterval)
-        }
-        return
+      if (verificationInterval) {
+        clearInterval(verificationInterval)
       }
-
-      const buyerWalletAddress = existingPayment?.buyer_wallet
-      if (!buyerWalletAddress) {
-        setError('Buyer wallet address not found. Please try again.')
-        setPaymentStatus('failed')
-        if (verificationInterval) {
-          clearInterval(verificationInterval)
-        }
-        return
-      }
-
-      let result = { verified: false, transactionHash: undefined }
-
-      if (product.chain === 'solana' && product.currency === 'SOL') {
-        result = await verifySOLPayment(
-          buyerWalletAddress,
-          product.recipient_wallet, 
-          cryptoAmount
-        )
-      } else if (product.chain === 'ethereum') {
-        if (product.currency === 'ETH') {
-          result = await verifyETHPayment(
-            buyerWalletAddress,
-            product.recipient_wallet, 
-            cryptoAmount
-          )
-        } else if (product.currency === 'USDT' || product.currency === 'USDC') {
-          result = await verifyTokenPayment(
-            product.currency as 'USDT' | 'USDC',
-            buyerWalletAddress,
-            product.recipient_wallet,
-            cryptoAmount
-          )
-        }
-      }
-
-      if (result.verified && result.transactionHash) {
-        // Check if this transaction hash already exists in the database
-        const { data: existingTransaction } = await supabase!
-          .from('payments')
-          .select('id, transaction_hash')
-          .eq('transaction_hash', result.transactionHash)
-          .neq('id', paymentId)
-          .single()
-
-        if (existingTransaction) {
-          setError('This transaction has already been verified for another payment.')
-          setPaymentStatus('failed')
-          if (verificationInterval) {
-            clearInterval(verificationInterval)
-          }
-          return
-        }
-
-        // Update payment status
-        const { error } = await supabase!
-          .from('payments')
-          .update({
-            status: 'confirmed',
-            transaction_hash: result.transactionHash,
-            confirmed_at: new Date().toISOString()
-          })
-          .eq('id', paymentId)
-
         if (error) throw error
 
         setPaymentStatus('confirmed')
@@ -478,7 +401,7 @@ export default function PaymentPage() {
                     <div>
                       <p className="font-medium text-red-700">Payment Verification Failed</p>
                       <p className="text-sm text-gray-600">
-                        We could nott verify your payment. Please try again or contact support.
+                        We could not verify your payment. Please try again or contact support.
                       </p>
                     </div>
                   </div>
