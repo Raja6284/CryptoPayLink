@@ -88,6 +88,15 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
+      // Check if payment is already confirmed to prevent duplicate processing
+      if (payment.status === 'confirmed') {
+        return NextResponse.json({
+          success: true,
+          message: 'Payment already confirmed',
+          transactionHash: payment.transaction_hash
+        })
+      }
+
       // Update payment status using admin client to bypass RLS
       const { error: updateError } = await supabaseAdmin!
         .from('payments')
@@ -97,22 +106,31 @@ export async function POST(request: NextRequest) {
           confirmed_at: new Date().toISOString()
         })
         .eq('id', paymentId)
+        .eq('status', 'pending') // Only update if still pending
 
       if (updateError) {
         console.error('Error updating payment:', updateError)
         return NextResponse.json({ error: 'Failed to update payment status' }, { status: 500 })
       }
 
-      // Send confirmation emails
-      try {
-        await fetch(`${request.nextUrl.origin}/api/send-confirmation`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentId })
-        })
-      } catch (emailError) {
-        console.error('Error sending confirmation email:', emailError)
-        // Don't fail the verification if email fails
+      // Send confirmation emails only if update was successful
+      const { data: updatedPayment } = await supabaseAdmin!
+        .from('payments')
+        .select('status')
+        .eq('id', paymentId)
+        .single()
+
+      if (updatedPayment?.status === 'confirmed') {
+        try {
+          await fetch(`${request.nextUrl.origin}/api/send-confirmation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId })
+          })
+        } catch (emailError) {
+          console.error('Error sending confirmation email:', emailError)
+          // Don't fail the verification if email fails
+        }
       }
 
       return NextResponse.json({

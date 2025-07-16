@@ -35,28 +35,39 @@ export async function POST(request: NextRequest) {
       .eq('payment_id', paymentId)
       .single()
 
+    // If invoice already exists and email was already sent, don't send again
+    if (existingInvoice) {
+      console.log(`Invoice already exists for payment ${paymentId}, skipping email`)
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Invoice already sent' 
+      })
+    }
+
     let invoiceNumber: string
     
-    if (existingInvoice) {
-      // Use existing invoice number
-      invoiceNumber = existingInvoice.invoice_number
-    } else {
-      // Generate new invoice number
-      invoiceNumber = `INV-${Date.now()}-${paymentId.slice(-8)}`
-      
-      // Save invoice record
-      const { error: invoiceError } = await supabaseAdmin!
-        .from('invoices')
-        .insert({
-          payment_id: paymentId,
-          invoice_number: invoiceNumber,
-          sent_at: new Date().toISOString()
-        })
+    // Generate new invoice number
+    invoiceNumber = `INV-${Date.now()}-${paymentId.slice(-8)}`
+    
+    // Save invoice record with sent_at timestamp to prevent duplicates
+    const { error: invoiceError } = await supabaseAdmin!
+      .from('invoices')
+      .insert({
+        payment_id: paymentId,
+        invoice_number: invoiceNumber,
+        sent_at: new Date().toISOString()
+      })
 
-      if (invoiceError) {
-        console.error('Failed to save invoice record:', invoiceError)
-        return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
+    if (invoiceError) {
+      console.error('Failed to save invoice record:', invoiceError)
+      // Check if it's a duplicate key error (invoice already exists)
+      if (invoiceError.code === '23505') {
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Invoice already processed' 
+        })
       }
+      return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
     }
 
     // Generate invoice

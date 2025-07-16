@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 // GET - Get single product (public access for payment pages)
 export async function GET(
@@ -31,12 +31,12 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get user from server-side auth
-    const cookieStore = cookies()
-    const supabase = createServerComponentClient({ cookies: () => cookieStore })
+    // Get user from server-side auth with proper error handling
+    const supabase = createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.error('Auth error in PUT:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -71,6 +71,7 @@ export async function PUT(
       .single()
 
     if (error) {
+      console.error('Database error in PUT:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -90,12 +91,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get user from server-side auth
-    const cookieStore = cookies()
-    const supabase = createServerComponentClient({ cookies: () => cookieStore })
+    // Get user from server-side auth with proper error handling
+    const supabase = createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.error('Auth error in DELETE:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

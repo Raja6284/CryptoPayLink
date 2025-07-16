@@ -204,24 +204,50 @@ export default function Dashboard() {
   }
 
   const handleToggleActive = async (product: Product) => {
+    const originalStatus = product.is_active
+    
+    // Optimistically update UI
+    setProducts(products.map(p => 
+      p.id === product.id ? { ...p, is_active: !p.is_active } : p
+    ))
+
     try {
       const response = await fetch(`/api/products/${product.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...product,
+          name: product.name,
+          description: product.description,
+          price_usd: product.price_usd,
+          chain: product.chain,
+          currency: product.currency,
+          recipient_wallet: product.recipient_wallet,
           is_active: !product.is_active
         })
       })
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        setProducts(products.map(p => 
+          p.id === product.id ? { ...p, is_active: originalStatus } : p
+        ))
+        
         const error = await response.json()
         throw new Error(error.error || 'Failed to update product')
       }
 
-      // Refresh data
-      await fetchData()
+      // Show success feedback
+      const newStatus = !originalStatus
+      alert(`Product ${newStatus ? 'activated' : 'deactivated'} successfully`)
+      
+      // Refresh stats
+      const activeProducts = products.filter(p => p.is_active).length
+      setStats(prev => ({ ...prev, activeProducts }))
     } catch (error: any) {
+      // Revert optimistic update on error
+      setProducts(products.map(p => 
+        p.id === product.id ? { ...p, is_active: originalStatus } : p
+      ))
       alert(error.message)
     }
   }
