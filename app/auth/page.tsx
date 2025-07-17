@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
@@ -17,28 +17,24 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     const checkUser = async () => {
-      if (!supabase || !isSupabaseConfigured()) {
-        return
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        router.push('/dashboard')
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          router.push('/dashboard')
+        }
+      } catch (error) {
+        console.error('Error checking user:', error)
       }
     }
     checkUser()
-  }, [router])
+  }, [router, supabase])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!supabase) {
-      setMessage('Please configure Supabase connection first')
-      return
-    }
     
     setLoading(true)
     setMessage('')
@@ -66,11 +62,6 @@ export default function AuthPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!supabase) {
-      setMessage('Please configure Supabase connection first')
-      return
-    }
-    
     setLoading(true)
     setMessage('')
 
@@ -90,11 +81,6 @@ export default function AuthPage() {
   }
 
   const handleGoogleSignIn = async () => {
-    if (!supabase) {
-      setMessage('Please configure Supabase connection first')
-      return
-    }
-    
     setLoading(true)
     try {
       const { error } = await supabase.auth.signInWithOAuth({

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 // GET - Get single product (public access for payment pages)
@@ -52,8 +51,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 })
     }
 
-    // Update product using admin client but with user verification
-    const { data: product, error } = await supabaseAdmin!
+    // Update product using the authenticated client
+    const { data: product, error } = await supabase
       .from('products')
       .update({
         name,
@@ -81,6 +80,7 @@ export async function PUT(
 
     return NextResponse.json(product)
   } catch (error: any) {
+    console.error('PUT route error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
@@ -118,19 +118,21 @@ export async function DELETE(
       }, { status: 400 })
     }
 
-    // Delete product using admin client but with user verification
-    const { error } = await supabaseAdmin!
+    // Delete product using the authenticated client
+    const { error } = await supabase
       .from('products')
       .delete()
       .eq('id', params.id)
       .eq('user_id', user.id) // Ensure user owns the product
 
     if (error) {
+      console.error('Database error in DELETE:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
+    console.error('DELETE route error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

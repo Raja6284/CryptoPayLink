@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { Product, Payment } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,29 +31,30 @@ export default function Dashboard() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     const checkAuth = async () => {
-      if (!supabase || !isSupabaseConfigured()) {
-        router.push('/')
-        return
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error || !user) {
+          router.push('/auth')
+          return
+        }
+        setUser(user)
+        await fetchData()
+      } catch (error) {
+        console.error('Auth check error:', error)
         router.push('/auth')
-        return
       }
-      setUser(user)
-      await fetchData()
     }
     checkAuth()
-  }, [router])
+  }, [router, supabase])
 
   const fetchData = async () => {
     try {
       // Fetch products
-      const { data: productsData, error: productsError } = await supabase!
+      const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .order('created_at', { ascending: false })
@@ -65,7 +66,7 @@ export default function Dashboard() {
       let paymentsData: Payment[] = []
       
       if (productIds.length > 0) {
-        const { data: payments, error: paymentsError } = await supabase!
+        const { data: payments, error: paymentsError } = await supabase
           .from('payments')
           .select('*')
           .in('product_id', productIds)
@@ -253,7 +254,6 @@ export default function Dashboard() {
   }
 
   const handleSignOut = async () => {
-    if (!supabase) return
     await supabase.auth.signOut()
     router.push('/auth')
   }
