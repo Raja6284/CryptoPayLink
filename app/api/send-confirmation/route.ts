@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendPaymentConfirmation } from '@/lib/email'
 import { generateInvoicePDF } from '@/lib/invoice'
 

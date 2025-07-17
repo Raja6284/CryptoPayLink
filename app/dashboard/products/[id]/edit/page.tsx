@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { Product } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,10 +38,7 @@ export default function EditProduct() {
 
   useEffect(() => {
     const checkAuthAndFetchProduct = async () => {
-      if (!supabase || !isSupabaseConfigured()) {
-        router.push('/')
-        return
-      }
+      const supabase = createClient()
 
       try {
         // Check authentication

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getCryptoPrice, calculateCryptoAmount } from '@/lib/blockchain'
 
 export async function createPayment(productId: string, buyerEmail: string, buyerWallet: string) {

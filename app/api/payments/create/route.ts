@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getCryptoPrice, calculateCryptoAmount } from '@/lib/blockchain'
 
 export async function POST(request: NextRequest) {
