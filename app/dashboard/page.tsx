@@ -583,13 +583,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Edit Product Modal */}
+      {/* Edit Product Modal */} 
       <ProductEditModal
         product={editingProduct}
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         onSave={handleSaveProduct}
       />
+    
+         
+      
+      
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
