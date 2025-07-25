@@ -48,7 +48,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify payment based on chain and currency
-    let result = { verified: false, transactionHash: undefined }
+    //let result = { verified: false, transactionHash: undefined }
+
+
+    let result: { verified: boolean; transactionHash?: string; debug?: any } = {
+      verified: false,
+    }
 
     if (product.chain === 'solana' && product.currency === 'SOL') {
       result = await verifySOLPayment(

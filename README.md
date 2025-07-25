@@ -45,7 +45,7 @@ CryptoPayLink is a comprehensive, production-ready platform that enables creator
 - **Block Explorer APIs** - Transaction verification
 
 ### Additional Services
-- **Resend** - Transactional email service
+- **Nodemailer** - Transactional email service
 - **jsPDF** - PDF invoice generation
 - **QRCode.js** - QR code generation for payments
 
@@ -54,7 +54,7 @@ CryptoPayLink is a comprehensive, production-ready platform that enables creator
 ### Prerequisites
 - Node.js 18+ installed
 - Supabase account
-- Resend account (for emails)
+- Nodemailer account (for emails)
 
 ### Installation
 
@@ -83,7 +83,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # Email Service
-RESEND_API_KEY=your_resend_api_key
+GMAIL_USER=
+GMAIL_APP_PASSWORD=
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
 
 # Blockchain RPC URLs (optional - uses public endpoints by default)
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
@@ -161,7 +164,7 @@ Automatic emails are sent for:
 ### Recommended Services
 - **Hosting**: Vercel, Netlify, or AWS
 - **Database**: Supabase (managed PostgreSQL)
-- **Email**: Resend or SendGrid
+- **Email**: Nodemailer
 - **Blockchain APIs**: Alchemy, Infura, or QuickNode
 
 ## 🤝 Contributing
