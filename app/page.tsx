@@ -6,11 +6,11 @@ import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Coins, 
-  Shield, 
-  Zap, 
-  CheckCircle, 
+import {
+  Coins,
+  Shield,
+  Zap,
+  CheckCircle,
   ArrowRight,
   Smartphone,
   Globe,
@@ -79,19 +79,25 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-gray-50">
       {/* Header */}
+
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
+            {/* Left side: logo and name */}
             <div className="flex items-center">
               <Coins className="h-8 w-8 text-green-600 mr-2" />
               <span className="text-2xl font-bold text-gray-900">CryptoPayLink</span>
             </div>
-            <div className="flex items-center space-x-4">
+
+            {/* Right side: auth buttons */}
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
               <Link href="/auth">
-                <Button variant="outline">Sign In</Button>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  Sign In
+                </Button>
               </Link>
               <Link href="/auth">
-                <Button className="bg-green-600 hover:bg-green-700">
+                <Button className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
                   Get Started
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -101,6 +107,7 @@ export default function HomePage() {
         </div>
       </header>
 
+
       {/* Hero Section */}
       <section className="pt-20 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -109,24 +116,31 @@ export default function HomePage() {
               Accept <span className="text-green-600">Crypto Payments</span> Like a Pro
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              The easiest way for creators, freelancers, and educators to accept cryptocurrency payments. 
+              The easiest way for creators, freelancers, and educators to accept cryptocurrency payments.
               No coding required, automatic verification, instant invoicing.
             </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/auth">
-                <Button 
-                  size="lg" 
-                  className="bg-green-600 hover:bg-green-700 text-lg px-8 py-3"
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-stretch sm:items-center w-full">
+              <Link href="/auth" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-lg w-full sm:w-auto"
                 >
                   Start Accepting Payments
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="text-lg px-8 py-3">
-                View Demo
-              </Button>
+              <Link href="/demo" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="text-lg w-full sm:w-auto"
+                >
+                  View Demo
+                </Button>
+              </Link>
             </div>
+
           </div>
         </div>
       </section>
@@ -253,10 +267,16 @@ export default function HomePage() {
             Join thousands of creators already using CryptoPayLink to accept cryptocurrency payments from customers worldwide.
           </p>
           <Link href="/auth">
-            <Button size="lg" className="bg-white text-green-600 hover:bg-gray-100 text-lg px-8 py-3">
-              Create Your First Payment Link
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <div className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                className="w-full sm:w-auto bg-white text-green-600 hover:bg-gray-100 text-lg font-medium"
+              >
+                Create Your First Payment Link
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+
           </Link>
         </div>
       </section>

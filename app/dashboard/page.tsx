@@ -49,7 +49,7 @@ export default function Dashboard() {
       }
     }
     checkAuth()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, supabase])
 
   const fetchData = async () => {
@@ -65,7 +65,7 @@ export default function Dashboard() {
       // Fetch payments for user's products
       const productIds = productsData?.map(p => p.id) || []
       let paymentsData: Payment[] = []
-      
+
       if (productIds.length > 0) {
         const { data: payments, error: paymentsError } = await supabase
           .from('payments')
@@ -85,7 +85,7 @@ export default function Dashboard() {
       const totalRevenue = paymentsData
         .filter(p => p.status === 'confirmed')
         .reduce((sum, p) => sum + p.amount_usd, 0)
-      
+
       const totalPayments = paymentsData.filter(p => p.status === 'confirmed').length
       const activeProducts = productsData?.filter(p => p.is_active).length || 0
 
@@ -102,7 +102,7 @@ export default function Dashboard() {
     if (!searchTerm) {
       setFilteredPayments(payments)
     } else {
-      const filtered = payments.filter(payment => 
+      const filtered = payments.filter(payment =>
         payment.transaction_hash?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.buyer_email.toLowerCase().includes(searchTerm.toLowerCase())
       )
@@ -130,7 +130,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentId })
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         if (data.pdf) {
@@ -207,9 +207,9 @@ export default function Dashboard() {
 
   const handleToggleActive = async (product: Product) => {
     const originalStatus = product.is_active
-    
+
     // Optimistically update UI
-    setProducts(products.map(p => 
+    setProducts(products.map(p =>
       p.id === product.id ? { ...p, is_active: !p.is_active } : p
     ))
 
@@ -230,10 +230,10 @@ export default function Dashboard() {
 
       if (!response.ok) {
         // Revert optimistic update on error
-        setProducts(products.map(p => 
+        setProducts(products.map(p =>
           p.id === product.id ? { ...p, is_active: originalStatus } : p
         ))
-        
+
         const error = await response.json()
         throw new Error(error.error || 'Failed to update product')
       }
@@ -241,13 +241,13 @@ export default function Dashboard() {
       // Show success feedback
       const newStatus = !originalStatus
       alert(`Product ${newStatus ? 'activated' : 'deactivated'} successfully`)
-      
+
       // Refresh stats
       const activeProducts = products.filter(p => p.is_active).length
       setStats(prev => ({ ...prev, activeProducts }))
     } catch (error: any) {
       // Revert optimistic update on error
-      setProducts(products.map(p => 
+      setProducts(products.map(p =>
         p.id === product.id ? { ...p, is_active: originalStatus } : p
       ))
       alert(error.message)
@@ -273,22 +273,41 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
+
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center py-4 gap-4 sm:gap-0">
+
+            {/* Left: Logo + Title */}
             <div className="flex items-center">
               <Coins className="h-8 w-8 text-green-600 mr-2" />
               <h1 className="text-2xl font-bold text-gray-900">CryptoPayLink</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {user?.email}</span>
-              <Button variant="outline" onClick={handleSignOut}>
+
+            {/* Right: Email + Sign Out */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto">
+              {user?.email && (
+                <span
+                  className="text-sm text-gray-600 w-full sm:w-auto sm:max-w-none max-w-[200px] truncate sm:truncate-none text-center sm:text-left"
+                  title={user.email}
+                >
+                  Welcome, {user.email}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleSignOut}
+                className="w-full sm:w-auto"
+              >
                 Sign Out
               </Button>
             </div>
+
           </div>
         </div>
       </header>
+
+
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
@@ -389,34 +408,40 @@ export default function Dashboard() {
                         <span className="text-sm text-gray-600">Currency:</span>
                         <Badge variant="outline">{product.currency}</Badge>
                       </div>
-                      <div className="flex space-x-2 pt-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {/* Edit Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleEditProduct(product)}
-                          className="flex-1"
+                          className="flex-1 min-w-[120px]"
                         >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+
+                        {/* Copy Link Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => copyPaymentLink(product.id)}
-                          className="flex-1"
+                          className="flex-1 min-w-[120px]"
                         >
                           <Copy className="h-4 w-4 mr-2" />
                           Copy Link
                         </Button>
-                        <div className="flex space-x-1">
+
+                        {/* Preview + Delete Buttons */}
+                        <div className="flex gap-2 flex-1 justify-end min-w-[80px]">
                           <Link href={`/pay/${product.id}`} target="_blank">
                             <Button variant="outline" size="sm" title="Preview">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleDeleteProduct(product)}
                             className="text-red-600 hover:text-red-700"
                             title="Delete"
@@ -425,6 +450,7 @@ export default function Dashboard() {
                           </Button>
                         </div>
                       </div>
+
                     </div>
                   </CardContent>
                 </Card>
@@ -447,7 +473,7 @@ export default function Dashboard() {
               />
             </div>
           </div>
-          
+
           {filteredPayments.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
@@ -515,10 +541,10 @@ export default function Dashboard() {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <Badge 
+                              <Badge
                                 variant={
                                   payment.status === 'confirmed' ? 'default' :
-                                  payment.status === 'pending' ? 'secondary' : 'destructive'
+                                    payment.status === 'pending' ? 'secondary' : 'destructive'
                                 }
                               >
                                 {payment.status}
@@ -573,7 +599,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
-          
+
           {filteredPayments.length > 10 && (
             <div className="mt-4 text-center">
               <p className="text-sm text-gray-600">
@@ -584,17 +610,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Edit Product Modal */} 
+      {/* Edit Product Modal */}
       <ProductEditModal
         product={editingProduct}
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         onSave={handleSaveProduct}
       />
-    
-         
-      
-      
+
+
+
+
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
