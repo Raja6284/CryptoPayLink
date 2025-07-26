@@ -202,7 +202,7 @@ export default function PaymentPage() {
 
   const getBlockExplorerUrl = (hash: string) => {
     if (product?.chain === 'solana') {
-      return `https://solscan.io/tx/${hash}?cluster=devnet`
+      return `https://solscan.io/tx/${hash}`
     } else {
       return `https://etherscan.io/tx/${hash}`
     }

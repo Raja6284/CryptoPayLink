@@ -4,7 +4,7 @@ import type { TransactionResponse } from "ethers";
 import { isAddress } from "ethers";
 // Solana configuration
 const SOLANA_RPC_URL =
-  "https://solana-devnet.g.alchemy.com/v2/-wgX0L1sP7MA475YuImcVvf6fB4ymZQx";
+  "https://solana-mainnet.g.alchemy.com/v2/-wgX0L1sP7MA475YuImcVvf6fB4ymZQx";
 const solanaConnection = new Connection(SOLANA_RPC_URL, "confirmed");
 
 // Ethereum configuration
