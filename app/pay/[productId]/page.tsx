@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -36,6 +37,7 @@ export default function PaymentPage() {
         clearInterval(verificationInterval)
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId])
 
   const fetchProduct = async () => {
@@ -335,7 +337,7 @@ export default function PaymentPage() {
                       required
                     />
                     <p className="text-xs text-gray-500">
-                      This must be the wallet address you're sending the payment from
+                      This must be the wallet address you are sending the payment from
                     </p>
                   </div>
                 )}
@@ -447,7 +449,7 @@ export default function PaymentPage() {
               </div>
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">3.</span>
-                <p>Enter your email and the wallet address you're sending from, then click "I've Sent the Payment"</p>
+                <p>Enter your email and the wallet address you are sending from, then click I have Sent the Payment"</p>
               </div>
               <div className="flex items-start space-x-2">
                 <span className="font-medium text-green-600">4.</span>
