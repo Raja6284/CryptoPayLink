@@ -3,13 +3,12 @@ import { ethers } from "ethers";
 import type { TransactionResponse } from "ethers";
 import { isAddress } from "ethers";
 // Solana configuration
-const SOLANA_RPC_URL =
-  "https://solana-mainnet.g.alchemy.com/v2/-wgX0L1sP7MA475YuImcVvf6fB4ymZQx";
-const solanaConnection = new Connection(SOLANA_RPC_URL, "confirmed");
+const SOLANA_RPC_URL = process.env.SOLANA_ALCHEMY_RPC_URL;
+
+const solanaConnection = new Connection(SOLANA_RPC_URL!, "confirmed");
 
 // Ethereum configuration
-const ETHEREUM_RPC_URL =
-  "https://eth-mainnet.g.alchemy.com/v2/-wgX0L1sP7MA475YuImcVvf6fB4ymZQx";
+const ETHEREUM_RPC_URL = process.env.ETHEREUM_ALCHEMY_RPC_URL
 const ethProvider = ETHEREUM_RPC_URL
   ? new ethers.JsonRpcProvider(ETHEREUM_RPC_URL)
   : null;
